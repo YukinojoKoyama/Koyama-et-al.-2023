@@ -3,7 +3,7 @@ ASM5
 ●Grain size●
 ASM5_PZ_Grainsize.ctf
 
-After obtaining crystallographic orientation, to exclude the influence of not well-indexed domain, an area
+To exclude the influence of not well-indexed domain, an area
 [0*max(ebsd.x) 0*max(ebsd.y) 0.9*max(ebsd.x) 0.2*max(ebsd.y)] (line 52 in both GrainsizeCalculation for Crossetal.2017)
 was used for grain size estimation.
 Grain size and grain boundary estimation were performed using GrainsizeCalculation for Crossetal.2017.
