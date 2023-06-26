@@ -3,7 +3,7 @@ ASM3
 ●Grain size●
 ASM3_PZ_Grainsize.ctf
 
-After obtaining crystallographic orientation, to exclude the influence of phyllosilicate minerals, an area
+To exclude the influence of phyllosilicate minerals, an area
 [0*max(ebsd.x) 0.1*max(ebsd.y) 0.87*max(ebsd.x) 1*max(ebsd.y)]  (line 52 in both GrainsizeCalculation for Crossetal.2017 and GrainsizeCalculation for Shimizu2012) was used for grain size estimation.
 Grain size and grain boundary estimation were performed using both GrainsizeCalculation for Crossetal.2017 and GrainsizeCalculation for Shimizu2012.
 
