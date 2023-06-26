@@ -1,0 +1,203 @@
+% GrainsizeCalculation for Shimizu2012.m - after Cross et al. 2017
+% A script to calculate completely recrystallized microstructure.
+
+clc
+clear all
+close all force
+
+
+%% Data input (e.g., ASM1_XZ_Grainsize.ctf)
+
+sampleName = 'Sampledata.ctf'; % Compatible with both .ctf and .cpr/crc formats
+
+
+%% Specify Crystal and Specimen Symmetries
+
+% crystal symmetry
+% if you indexed other minerals you have to add crystalSymmetry
+CS = {... 
+  'notIndexed',...
+  crystalSymmetry('-3m1', [4.913 4.913 5.504], 'X||a*', 'Y||b', 'Z||c', 'mineral', 'Quartz-new', 'color', 'blue'),...
+  crystalSymmetry('12/m1', [8.274 12.991 7.144], [90 116.13 90]*degree, 'X||a*', 'Y||b*', 'mineral', 'B', 'color', 'red'),...
+  crystalSymmetry('12/m1', [5.158 8.95 20.071], [90 95.8 90]*degree, 'X||a*', 'Y||b*', 'mineral', 'A', 'color', 'yellow'),...
+  crystalSymmetry('12/m1', [8.89 5.69 10.135], [90 114.44 90]*degree, 'X||a*', 'Y||b*', 'mineral', 'A', 'color', 'green'),...
+  crystalSymmetry('-3m1', [5.038 5.038 13.772], [90 90 120]*degree, 'X||a*', 'Y||b', 'mineral', 'A', 'color', 'magenta'),...
+  crystalSymmetry('4/mmm', [9.431 9.431 37.774], 'mineral', 'A', 'color', 'black')};
+
+% plotting convention
+setMTEXpref('xAxisDirection','east');
+setMTEXpref('zAxisDirection','intoPlane');
+
+
+%% Read Files
+
+% path to files
+pname = pwd;
+
+% which files to be imported
+fname = [pname '\' sampleName];
+
+
+%% Import the Data
+
+% create an EBSD variable containing the data
+if sampleName(end-2:end) == 'ctf'
+    ebsd = EBSD.load(fname,CS,'interface','ctf',...
+      'convertEuler2SpatialReferenceFrame');
+elseif sampleName(end-2:end) == 'cpr'
+    ebsd = loadEBSD(fname,CS,'interface','crc',...
+      'convertEuler2SpatialReferenceFrame');
+end
+
+
+%% Reduce the map area (useful for debugging - reduces computation time)
+
+ebsd = ebsd(inpolygon(ebsd,[0*max(ebsd.x) 0*max(ebsd.y) 1*max(ebsd.x) 1*max(ebsd.y)]));
+% checks which ebsd data are within given polygon == inpolygon
+
+
+%% Calculate grains
+
+rawebsd = ebsd;
+ebsd = ebsd('Quartz-new');
+plot(ebsd)
+
+% Construct grains using a critical misorientation of 12 degrees
+[grains ebsd.grainId ebsd.mis2mean] = calcGrains(ebsd,'angle',12*degree);
+
+
+% Remove wild spikes (1 pixel grains)
+% - this step drastically reduces computation time, mostly w.r.t. twin merging
+ebsd(grains(grains.grainSize == 1)).phase = 0;
+ebsd = ebsd('Quartz-new');
+
+
+% Reconstruct grains without wild-spikes
+[grains ebsd.grainId ebsd.mis2mean] = calcGrains(ebsd,'angle',12*degree);
+
+
+%% Remove twin boundaries
+
+% Find all quartz-quartz grain boundaries
+gb_qtz = grains.boundary('Quartz-new','Quartz-new');
+
+
+% Find all boundaries with rotations of 60+/-5 degrees around the c-axis
+% - these are Dauphine twins
+rot = rotation('axis',Miller(0,0,0,1,CS{2}),'angle',60*degree);
+ind = angle(gb_qtz.misorientation,rot)<5*degree; 
+twinBoundary = gb_qtz(ind);
+
+% Merge grains separated by twin boundaries 
+% - this is computationally expensive
+[mergedGrains,grains.prop.parentId] = merge(grains,twinBoundary);
+
+
+%% Plot EBSD pixel data
+
+figure
+plot(ebsd,ebsd.orientations)
+    hold on
+plot(mergedGrains.boundary)
+
+
+%% Remove poorly constrained grains
+
+stepsize = ebsd(2).x - ebsd(1).x; % EBSD step-size (i.e. resolution) in microns
+
+% Calculate the fraction of each grain's area that is made up of indexed
+% pixels (0-1)
+% - for example, fraction = 0.1 means that only 10% of that grain is made 
+% up of indexed pixels (in other words, it's not very well constrained)
+fraction = (full(mergedGrains.grainSize).*(stepsize^2))./mergedGrains.area; 
+
+% Use trade-off curve to find cutoff between well-constrained and 
+% poorly-constrained grains
+knee = tradeOff(fraction);
+    xlabel('Number of grains (cumulative)')
+    ylabel('Indexed fraction')
+    
+% Keep only the well-constrained grains, and those made up of 4 or more pixels
+condition = (full(mergedGrains.grainSize) >= 4) & (fraction > knee);
+mergedGrains = mergedGrains(condition);
+
+        
+%% Plot grains
+
+figure
+plot(mergedGrains,'white',[0.5 0.5 1]) 
+    hold on
+plot(mergedGrains.boundary('Quartz-new','Quartz-new')) % Plot grain boundaries
+        
+        
+%% Find merged grains that are bisected by the map border
+% - we want to remove these for the grain size analysis
+
+face_id = mergedGrains.boundary.hasPhaseId(0);
+bordergrain_id = mergedGrains.boundary(face_id).grainId;
+bordergrain_id(bordergrain_id==0) = []; % Remove zeros
+
+bordergrains = mergedGrains(ismember(mergedGrains.id,bordergrain_id));
+nonbordergrains = mergedGrains(~ismember(mergedGrains.id,bordergrain_id));
+
+
+%% Get area-equivalent circle diameters for all grains
+
+d = 2*equivalentRadius(nonbordergrains);
+
+
+%% Get area-equivalent circle diameters for relict and recrystallized grains
+
+% area equivalent circle diameters and logarithmic grain sizes
+D = 2*equivalentRadius(nonbordergrains);
+DL = log10(D)
+
+% the probability density function of logarithmic grain sizes
+[f,xi,bw] = ksdensity(DL)
+
+% the standard deviation of the logarithmic grain size
+histfit(DL)
+pd = fitdist(DL,'Normal')
+
+
+%% Plot grain size histograms
+
+
+edges = [0:0.075:2.5]; % Set the histogram bin widths
+loglim = [0 2.5 0 0.25]; % Set the histogram axis limits
+    
+figure
+set(gcf,'units','normalized','position',[0.15 0.15 0.7 0.5])
+
+
+% Plot grain size distribution
+subplot(1,2,1),
+histogram(log10(d),edges,'Normalization','probability',...
+    'facecolor',[0.5 0.5 0.5]);
+    axis(loglim)
+    xlabel('Grain size (\mum)')
+    ylabel('Relative frequency (%)')
+    axis(loglim)
+    set(gca,'xtick',[0:2])
+    set(gca,'xticklabel',10.^get(gca,'xtick'),'yticklabel',100.*get(gca,'ytick'))
+
+% show probability density
+subplot(1,2,2),
+    plot(xi,f)
+    xlabel('Grain size (10^x\mum)')
+    ylabel('Normalized frequency')
+    hold on
+
+
+%% Show calculated grain size
+
+[M,I] = max(f);
+
+Lngrainsize = 2.3025*xi(I);
+stderror = 2.3025*pd.sigma/sqrt(length(nonbordergrains));
+
+disp(['The mode of ln grain size is = ',num2str(Lngrainsize,3),...
+    ' +/- ',num2str(stderror,3),'(1σ)'])
+   
+
+

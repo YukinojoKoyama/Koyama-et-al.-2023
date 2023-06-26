@@ -1,0 +1,91 @@
+%% PlotforOA.m 
+% Crystallographic orientations of each Grain were plotted on the Schmidt net
+% please insert TEST.ctf into your current folder
+
+clc
+clear all
+clear all force
+ebsd = EBSD.load('TEST.ctf');
+
+
+%% load grain2d files (e.g., nonbordergrains)
+
+% after ForShimizu2012 or Forclossetal2017, there would be
+% "nonbirdergrains" or "RexNonBorder"
+% in your workspace. Please conserve them and load it.
+
+load("Sample1.mat")
+%grains1 = nonbordergrains 
+grains1 = rexNonBorder
+
+% if you have more files to combine, use the scripts below.
+
+%load("Sample2.mat")
+%grains2 = nonbordergrains
+%grains2 = rexNonBorder
+
+%load("Sample3.mat")
+%grains3 = nonbordergrains
+%grains3 = rexNonBorder
+
+%load("Sample4.mat")
+%grains4 = nonbordergrains
+%grains4 = rexNonBorder
+
+%Rotation of Crystallographic orientation
+
+grains1 = rotate(grains1,rotation.byAxisAngle(zvector,0*degree))
+grains1 = rotate(grains1,rotation.byAxisAngle(yvector,0*degree))
+grains1 = rotate(grains1,rotation.byAxisAngle(xvector,0*degree))
+
+%grains2 = rotate(grains2,rotation.byAxisAngle(zvector,0*degree))
+%grains2 = rotate(grains2,rotation.byAxisAngle(yvector,0*degree))
+%grains2 = rotate(grains2,rotation.byAxisAngle(xvector,0*degree))
+
+%grains3 = rotate(grains3,rotation.byAxisAngle(zvector,0*degree))
+%grains3 = rotate(grains3,rotation.byAxisAngle(yvector,0*degree))
+%grains3 = rotate(grains3,rotation.byAxisAngle(xvector,0*degree))
+
+%grains4 = rotate(grains4,rotation.byAxisAngle(zvector,0*degree))
+%grains4 = rotate(grains4,rotation.byAxisAngle(yvector,0*degree))
+%grains4 = rotate(grains4,rotation.byAxisAngle(xvector,0*degree))
+
+
+%% Calculate mean orientation of each grain
+
+A = grains1.meanOrientation
+%B = grains2.meanOrientation
+%C = grains3.meanOrientation
+%D = grains4.meanOrientation
+
+
+%% Combine data
+
+AA = [A(1)]
+
+for i = 2:length(A)
+    AA(i) = A(i)
+end
+
+%for i = 1:length(B)
+%    AA(length(A)+i) = B(i)
+%end
+
+%for i = 1:length(C)
+%    AA(length(A)+length(B)+i) = C(i)
+%end
+
+%for i = 1:length(D)
+%    AA(length(A)+length(B)+length(C)+i) = D(i)
+%end
+
+
+%% plot Crystallographic orientation on Schmidt net
+
+h = Miller({0,0,0,1},ebsd('Quartz-new').CS);
+plotPDF(AA,h,'figSize','contourf')
+
+save("CPOcombined","AA")
+
+hold off
+
