@@ -3,7 +3,7 @@ ASM4
 ●Grain size measurement●
 ASM4_PZ_Grainsize.ctf
 
-After obtaining the crystallographic orientation, the entire area was used for grain size estimation.
+The entire area was used for grain size estimation.
 Grain size and grain boundary estimation were performed using GrainsizeCalculation for Crossetal.2017.
 
 ●Fabric pattern and OA●
