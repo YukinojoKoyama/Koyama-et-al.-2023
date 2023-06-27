@@ -11,7 +11,7 @@ ebsd = EBSD.load('TEST.ctf');
 %% load grain2d files (e.g., nonbordergrains)
 
 % after ForShimizu2012 or Forclossetal2017, there would be
-% "nonbirdergrains" or "RexNonBorder"
+% "nonbordergrains" or "RexNonBorder"
 % in your workspace. Please conserve them and load it.
 
 load("Sample1.mat")
