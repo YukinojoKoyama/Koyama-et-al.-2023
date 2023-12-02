@@ -1,21 +1,11 @@
-% GrainsizeCalculation for Crossetal.2017.m - after Cross et al. 2017
-%
-% A script to calculate recrystallized grain size in a deformed
-% polycrystalline aggregate containing both recrystallized and relict
-% grains. Recrystallized grains (small, low strain) are separated from
-% relict (large, high strain) grains using the grain orientation spread
-% (GOS). GOS is the average 'mis2mean' value for each grain, where mis2mean
-% is the misorientation between each pixel in a grain, and the mean
-% orientation of that grain. 
-
 clc
 clear all
 close all force
 
 
-%% Data input (e.g., ASM1_XZ_Grainsize.ctf)
+%% Data input
 
-sampleName = 'Sampledata.ctf'; % Compatible with both .ctf and .cpr/crc formats
+sampleName = 'Projectab1YZ.ctf'; % Compatible with both .ctf and .cpr/crc formats
 
 
 %% Specify Crystal and Specimen Symmetries
@@ -24,7 +14,7 @@ sampleName = 'Sampledata.ctf'; % Compatible with both .ctf and .cpr/crc formats
 % If you indexed other minerals you have to add crystalSymmetry
 CS = {... 
   'notIndexed',...
-  crystalSymmetry('-3m1', [4.913 4.913 5.504], 'X||a*', 'Y||b', 'Z||c', 'mineral', 'Quartz-new', 'color', 'blue'),...
+  crystalSymmetry('-3m1', [4.913 4.913 5.504], 'X||a*', 'Y||b', 'Z||c', 'mineral', 'Quartz-new', 'color', 'white'),...
   crystalSymmetry('12/m1', [8.274 12.991 7.144], [90 116.13 90]*degree, 'X||a*', 'Y||b*', 'mineral', 'B', 'color', 'red'),...
   crystalSymmetry('12/m1', [5.158 8.95 20.071], [90 95.8 90]*degree, 'X||a*', 'Y||b*', 'mineral', 'A', 'color', 'yellow'),...
   crystalSymmetry('12/m1', [8.89 5.69 10.135], [90 114.44 90]*degree, 'X||a*', 'Y||b*', 'mineral', 'A', 'color', 'green'),...
@@ -59,7 +49,7 @@ end
 
 %% Reduce the map area (useful for debugging - reduces computation time)
 
-ebsd = ebsd(inpolygon(ebsd,[0*max(ebsd.x) 0*max(ebsd.y) 1*max(ebsd.x) 1*max(ebsd.y)]));
+ebsd = ebsd(inpolygon(ebsd,[0*max(ebsd.x) 0*max(ebsd.y) 0.9*max(ebsd.x) 0.2*max(ebsd.y)]));
 % checks which ebsd data are within given polygon == inpolygon
 
 
@@ -99,12 +89,16 @@ twinBoundary = gb_qtz(ind);
 [mergedGrains,grains.prop.parentId] = merge(grains,twinBoundary);
 
 
-%% Plot EBSD pixel data
+%% Plot EBSD pixel data (IPF vector3d.Z)
 
 figure
 plot(ebsd,ebsd.orientations)
     hold on
 plot(mergedGrains.boundary)
+
+figure
+ipfKey = ipfColorKey(ebsd('Quartz-new'));
+plot(ipfKey)
 
 
 %% Remove poorly constrained grains
@@ -163,10 +157,29 @@ rexGrains = mergedGrains(~ismember(mergedGrains.id,ids));
 figure
 plot(ebsd,ebsd.mis2mean.angle/degree)
     hold on
-plot(relictGrains.boundary) % Plot relict grain boundaries
+plot(mergedGrains.boundary) 
     colorbar
 
+%% Plot KAM maps
+
+kam = ebsd.KAM / degree;
+
+figure
+% lets plot it
+plot(ebsd,kam,'micronbar','off')
+caxis([0,5])
+mtexColorbar
+mtexColorMap LaboTeX
+hold on
+plot(mergedGrains.boundary,'lineWidth',1.5)
+hold off
         
+%% Plot relict and recrystallized grains
+
+figure
+
+plot(mergedGrains.boundary,'linewidth',2) % Plot grain boundaries
+
 %% Plot relict and recrystallized grains
 
 figure
@@ -174,7 +187,7 @@ plot(relictGrains,'facecolor',[1 0.5 0.5]) % Relict grains = red
     hold on
 plot(rexGrains,'facecolor',[0.5 0.5 1]) % Recrystallized grains = blue
     hold on
-plot(mergedGrains.boundary,'linewidth',2) % Plot grain boundaries
+plot(mergedGrains.boundary) % Plot grain boundaries
         
         
 %% Find merged grains that are bisected by the map border
@@ -210,6 +223,8 @@ rexD = 2*equivalentRadius(rexNonBorder);
 
 rmsmean_low = rms(rexD); % Root mean square (RMS)
 amean_low2 = mean((rexD).^2) %Arithmetic mean of the square of rexD
+amean_low = mean(rexD) %Arithmetic mean of the rexD
+gmean_low = 10^(mean(log10(rexD))) %geometric mean
 
 a1std_low = std(rexD); % 1 standard deviation
 a1std_low2 = std((rexD).^2) % 1 standard deviation of the square of rexD
@@ -257,15 +272,43 @@ disp(['The square of grain size = ',num2str(amean_low2,3),...
     ' +/- ',num2str(a1std_low2/sqrt(length(rexD)),3),' microns'])
 
 
-%% Calculate log10RMS and its standard error
+%% Calculate Stress
+% Update of random seed
+rng('shuffle');
+% Generation of random numbers according to the mean (a) and standaed
+% deviation (b) of the obtained square grain size
 a = amean_low2;
 b = a1std_low2/sqrt(length(rexD));
 y = b.*randn(10000,1) + a;
 yy = y.^(0.5);
 yyy = log10(yy);
-stats = [mean(yyy) std(yyy) var(yyy)];
 
-disp(['The log10RMS grain size = ',num2str(mean(yyy),3),...
-    ' +/- ',num2str(std(yyy),3),'(1σ)'])
+% Update of random seed
+rng('shuffle');
+% Generation of random numbers according to the mean and variance-covariance 
+% matrices of parameters in Cross et al. 2017
+mu = [3.91 -1.41];
+Sigma = [0.0466 -0.0234; -0.0234 0.0119];
+Piezo = mvnrnd(mu, Sigma, 10000);
+Parameter_a_and_b = [mean(Piezo) std(Piezo) var(Piezo)];
+
+% Calculate stress using generated random numbers
+for c = 1:10000
+    logsigma(c) = (yyy(c) - Piezo(c,1))/Piezo(c,2);
+end
+
+% Average value and 95% confidence interval of obtained stress
+
+RMSaverage = log10(sqrt(amean_low2));
+sigmaAverage = 10^((RMSaverage - 3.91)/(-1.41));
+disp(['Average stress value (MPa) = ',num2str([(2/sqrt(3))*sigmaAverage],3)]) 
+
+Sort_logsigma = sort(logsigma);
+
+disp(['95 percent confidence interval (MPa) = ',num2str([(2/sqrt(3))*10^Sort_logsigma(250) (2/sqrt(3))*10^Sort_logsigma(9750)],3)]) 
+
+
+
+
 
 
